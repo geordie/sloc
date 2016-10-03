@@ -181,7 +181,7 @@ type Stats struct {
 	CommentLines int
 }
 
-func handleFile(langStats *map[string]*Stats, fname string) {
+func handleFile(langStats map[string]*Stats, fname string) {
 	var l Language
 	ok := false
 	for _, lang := range languages {
@@ -194,10 +194,10 @@ func handleFile(langStats *map[string]*Stats, fname string) {
 	if !ok {
 		return // ignore this file
 	}
-	i, ok := (*langStats)[l.Name()]
+	i, ok := langStats[l.Name()]
 	if !ok {
 		i = &Stats{}
-		(*langStats)[l.Name()] = i
+		langStats[l.Name()] = i
 	}
 	c, err := ioutil.ReadFile(fname)
 	if err != nil {
@@ -267,19 +267,19 @@ func (r *LResult) Add(a LResult) {
 	r.TotalLines += a.TotalLines
 }
 
-func printJSON(langStats *map[string]*Stats) {
-	bs, err := json.MarshalIndent(*langStats, "", "  ")
+func printJSON(langStats map[string]*Stats) {
+	bs, err := json.MarshalIndent(langStats, "", "  ")
 	if err != nil { panic(err) }
 	fmt.Println(string(bs))
 }
 
-func printInfo(langStats *map[string]*Stats) {
+func printInfo(langStats map[string]*Stats) {
 	w := tabwriter.NewWriter(os.Stdout, 2, 8, 2, ' ', tabwriter.AlignRight)
 	fmt.Fprintln(w, "Language\tFiles\tCode\tComment\tBlank\tTotal\t")
 	d := LData([]LResult{})
 	total := &LResult{}
 	total.Name = "Total"
-	for n, i := range *langStats {
+	for n, i := range langStats {
 		r := LResult{
 			n,
 			i.FileCount,
@@ -293,7 +293,7 @@ func printInfo(langStats *map[string]*Stats) {
 	}
 	d = append(d, *total)
 	sort.Sort(d)
-	//d[0].Name = "Total"
+
 	for _, i := range d {
 		fmt.Fprintf(
 			w,
@@ -323,13 +323,13 @@ func Crawl(args []string) ([]string){
 	return files
 }
 
-func Calculate(files []string) (*map[string]*Stats){
+func Calculate(files []string) (map[string]*Stats){
 
 	var langStats = map[string]*Stats{}
 	for _, f := range files {
-		handleFile(&langStats, f)
+		handleFile(langStats, f)
 	}
-	return &langStats
+	return langStats
 }
 
 func main() {
