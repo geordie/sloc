@@ -181,9 +181,7 @@ type Stats struct {
 	CommentLines int
 }
 
-var info = map[string]*Stats{}
-
-func handleFile(fname string) {
+func handleFile(langStats *map[string]*Stats, fname string) {
 	var l Language
 	ok := false
 	for _, lang := range languages {
@@ -196,10 +194,10 @@ func handleFile(fname string) {
 	if !ok {
 		return // ignore this file
 	}
-	i, ok := info[l.Name()]
+	i, ok := (*langStats)[l.Name()]
 	if !ok {
 		i = &Stats{}
-		info[l.Name()] = i
+		(*langStats)[l.Name()] = i
 	}
 	c, err := ioutil.ReadFile(fname)
 	if err != nil {
@@ -209,9 +207,7 @@ func handleFile(fname string) {
 	l.Update(c, i)
 }
 
-var files []string
-
-func add(n string) {
+func addFile(files *[]string, n string) {
 	fi, err := os.Stat(n)
 	if err != nil {
 		goto invalid
@@ -223,13 +219,13 @@ func add(n string) {
 		}
 		for _, f := range fs {
 			if f.Name()[0] != '.' {
-				add(path.Join(n, f.Name()))
+				addFile(files, path.Join(n, f.Name()))
 			}
 		}
 		return
 	}
 	if fi.Mode()&os.ModeType == 0 {
-		files = append(files, n)
+		*files = append(*files, n)
 		return
 	}
 
@@ -271,19 +267,19 @@ func (r *LResult) Add(a LResult) {
 	r.TotalLines += a.TotalLines
 }
 
-func printJSON() {
-	bs, err := json.MarshalIndent(info, "", "  ")
+func printJSON(langStats *map[string]*Stats) {
+	bs, err := json.MarshalIndent(*langStats, "", "  ")
 	if err != nil { panic(err) }
 	fmt.Println(string(bs))
 }
 
-func printInfo() {
+func printInfo(langStats *map[string]*Stats) {
 	w := tabwriter.NewWriter(os.Stdout, 2, 8, 2, ' ', tabwriter.AlignRight)
 	fmt.Fprintln(w, "Language\tFiles\tCode\tComment\tBlank\tTotal\t")
 	d := LData([]LResult{})
 	total := &LResult{}
 	total.Name = "Total"
-	for n, i := range info {
+	for n, i := range *langStats {
 		r := LResult{
 			n,
 			i.FileCount,
@@ -319,6 +315,23 @@ var (
 	version = flag.Bool("V", false, "display version info and exit")
 )
 
+func Crawl(args []string) ([]string){
+	var files []string
+	for _, n := range args {
+		addFile(&files, n)
+	}
+	return files
+}
+
+func Calculate(files []string) (*map[string]*Stats){
+
+	var langStats = map[string]*Stats{}
+	for _, f := range files {
+		handleFile(&langStats, f)
+	}
+	return &langStats
+}
+
 func main() {
 	flag.Parse()
 	if *version {
@@ -340,17 +353,12 @@ func main() {
 		args = append(args, `.`)
 	}
 
-	for _, n := range args {
-		add(n)
-	}
-
-	for _, f := range files {
-		handleFile(f)
-	}
+	files := Crawl( args )
+	langStats := Calculate( files )
 
 	if *useJson {
-		printJSON()
+		printJSON(langStats)
 	} else {
-		printInfo()
+		printInfo(langStats)
 	}
 }
